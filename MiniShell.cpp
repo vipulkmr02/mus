@@ -33,14 +33,14 @@ class Shell {
             running = false;
             return true;
         } else if (command == "cd") {
+            const char* home = getenv("HOME");
             if (tokens.size() == 1) {
-                const char* home = getenv("HOME");
                 if (home && chdir(home) != 0) {
                     std::cerr << "cd: " << home << ": " << strerror(errno)
                               << std::endl;
                 }
             } else {
-                if (chdir(tokens[1].c_str()) != 0) {
+                if (chdir(tokens[1] == "~" ? home : tokens[1].c_str()) != 0) {
                     std::cerr << "cd: " << tokens[1] << ": " << strerror(errno)
                               << std::endl;
                 }
@@ -60,7 +60,9 @@ class Shell {
         return false;
     }
 
-    void executeExternal(const std::vector<std::string>& tokens) {
+    void executeExternal(const std::vector<std::string>& tokens,
+                         const std::string& outputFile = "",
+                         const std::string& inputFile = "") {
         pid_t pid = fork();
 
         if (pid == -1) {
@@ -74,6 +76,31 @@ class Shell {
                 args.push_back(const_cast<char*>(token.c_str()));
             }
             args.push_back(nullptr);
+
+            FILE* ip_file = fopen(inputFile.c_str(), "r");
+
+            // op_file create & write mode
+            FILE* op_file = fopen(outputFile.c_str(), "w");
+
+            if (!inputFile.empty()) {
+                if (ip_file) {
+                    dup2(fileno(ip_file), STDIN_FILENO);
+                    fclose(ip_file);
+                } else {
+                    std::cerr << "Error opening file: " << strerror(errno)
+                              << std::endl;
+                }
+            }
+
+            if (!outputFile.empty()) {
+                if (op_file) {
+                    dup2(fileno(op_file), STDOUT_FILENO);
+                    fclose(op_file);
+                } else {
+                    std::cerr << "Error opening file: " << strerror(errno)
+                              << std::endl;
+                }
+            }
 
             execvp(args[0], args.data());
 
@@ -111,17 +138,26 @@ class Shell {
 
                 auto outputCh = std::find(tokens.begin(), tokens.end(), ">");
                 auto inputCh = std::find(tokens.begin(), tokens.end(), "<");
-                auto pipeCh = std::find(tokens.begin(), tokens.end(), "|");
+                // auto pipeCh = std::find(tokens.begin(), tokens.end(), "|");
 
-                if (outputCh != tokens.end()) {
-                    // Handle output redirection
-                    std::string outputFile = *(outputCh + 1);
-                    // running command
-                    executeBuiltIn(tokens);
+                std::string inputFile, outputFile;
+
+                if (outputCh != tokens.end() && outputCh + 1 != tokens.end()) {
+                    std::cout << "output redirection to: " << *(outputCh + 1)
+                              << std::endl;
+                    outputFile = *(outputCh + 1);
+                    tokens.erase(outputCh, outputCh + 2);
+                }
+
+                if (inputCh != tokens.end() && inputCh + 1 != tokens.end()) {
+                    std::cout << "input redirection from: " << *(inputCh + 1)
+                              << std::endl;
+                    inputFile = *(inputCh + 1);
+                    tokens.erase(inputCh, inputCh + 2);
                 }
 
                 if (!executeBuiltIn(tokens)) {
-                    executeExternal(tokens);
+                    executeExternal(tokens, outputFile, inputFile);
                 }
             }
 
@@ -137,3 +173,4 @@ int main() {
     shell.run();
     return 0;
 }
+

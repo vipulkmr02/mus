@@ -1,4 +1,5 @@
 .vscode/
 .shell_history
 *.o
+gi_*
 mus

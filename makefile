@@ -11,7 +11,6 @@ OBJS = $(SRCS:.cpp=.o)
 # Default target
 all: $(TARGET)
 
-# Link the target
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
@@ -29,5 +28,9 @@ rebuild: clean all
 # Run the shell
 run: $(TARGET)
 	./$(TARGET)
+
+# Debugging target
+debug: $(TARGET)
+	gdb ./$(TARGET)
 
 .PHONY: all clean rebuild run
